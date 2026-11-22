@@ -85,5 +85,7 @@ These facts are used consistently across all pages and should stay in sync with 
 - Delivery: within Hungary only, 2–3 business days
 - Free delivery for orders above 15,000 HUF
 - Unopened packages can be returned within 14 days
+- Customer support: support@brewly-coffee.example, +36 1 555 0123, Kávé utca 12, 1051 Budapest (fictional; `contact.html`)
+- Support opening hours: Monday to Friday 09:00–17:00, closed at weekends
 
 The business is fictional and is for demonstration purposes only.

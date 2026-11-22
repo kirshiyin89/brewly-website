@@ -15,8 +15,32 @@ brewly-website/
 ├── returns.html        Return policy
 ├── faq.html            Frequently asked questions
 ├── css/style.css       Styles
-└── js/chatbot.js       Placeholder for the future chatbot widget (empty for now)
+└── js/
+    ├── chatbot.js      Loader for the chat widget (included on every page)
+    └── brewly-chat/    Chat widget modules (api, session, render, widget, widget.css)
 ```
+
+## Chat widget
+
+Every page has a floating **Ask Brewly** button. It opens a chat panel that answers questions about public Brewly information (coffees, brewing, delivery, returns). Visitors do not need to log in.
+
+The widget is loaded by the existing `<script src="js/chatbot.js">` tag at the end of each page, so pages need no changes to show it.
+
+- It talks to the anonymous endpoint `POST /api/public/brewly/chat` in `fintech-ai-assistant`.
+- The conversation continues across pages in the same browser tab (kept in `sessionStorage`). "New chat" starts over.
+- Replies are plain text with a small subset of markdown (`**bold**`, `- ` bullet lists). Model output is never inserted as raw HTML.
+
+### Configuration
+
+The backend URL comes from `data-api-base` on the script tag. The default is `http://localhost:8080`:
+
+```html
+<script src="js/chatbot.js" data-api-base="https://api.example.com"></script>
+```
+
+The backend must allow the website's origin. Set `PUBLIC_CHAT_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:3000`) for the `fintech-ai-assistant` app.
+
+Requests are rate-limited per client IP (`app.public-chat.max-requests-per-minute`, default 10). If the site is behind a reverse proxy, the backend must be configured to read the real client address, or all visitors will share one limit.
 
 ## Requirements
 

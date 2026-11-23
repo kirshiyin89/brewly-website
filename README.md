@@ -89,3 +89,21 @@ These facts are used consistently across all pages and should stay in sync with 
 - Support opening hours: Monday to Friday 09:00–17:00, closed at weekends
 
 The business is fictional and is for demonstration purposes only.
+
+## Browser tests for the chat widget
+
+The tests in `e2e/` open the real pages in Chromium and check the chat widget
+(`js/brewly-chat/`). The backend is replaced by stubs, so the tests do not need
+the Spring Boot app, a database or a Groq key.
+
+```bash
+npm install            # once: installs Playwright
+npx playwright install chromium   # once: downloads the browser
+npm run test:e2e       # runs all tests; a static server starts on port 3000
+npm run test:e2e:ui    # the same tests in Playwright's interactive UI
+npx playwright show-report   # open the HTML report of the last run
+```
+
+Playwright starts `python3 -m http.server 3000` itself. If port 3000 is already
+used by another server, the tests reuse it, so stop that server first if the
+pages look wrong.

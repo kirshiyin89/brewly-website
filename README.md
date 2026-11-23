@@ -1,6 +1,6 @@
 # Brewly Coffee – local website
 
-A small, static demo website for the fictional coffee shop **Brewly Coffee** (Budapest, Hungary). It is the test target for the Spring AI crawler in `fintech-ai-assistant`.
+A small, static demo website for the fictional coffee shop **Brewly Coffee** (Budapest, Hungary). It is the test target for the Spring AI crawler in `ai-assistant`.
 
 The site is plain HTML, CSS and vanilla JavaScript. It has no build step and no dependencies.
 
@@ -26,7 +26,7 @@ Every page has a floating **Ask Brewly** button. It opens a chat panel that answ
 
 The widget is loaded by the existing `<script src="js/chatbot.js">` tag at the end of each page, so pages need no changes to show it.
 
-- It talks to the anonymous endpoint `POST /api/public/brewly/chat` in `fintech-ai-assistant`.
+- It talks to the anonymous endpoint `POST /api/public/brewly/chat` in `ai-assistant`.
 - The conversation continues across pages in the same browser tab (kept in `sessionStorage`). "New chat" starts over.
 - Replies are plain text with a small subset of markdown (`**bold**`, `- ` bullet lists). Model output is never inserted as raw HTML.
 
@@ -38,7 +38,7 @@ The backend URL comes from `data-api-base` on the script tag. The default is `ht
 <script src="js/chatbot.js" data-api-base="https://api.example.com"></script>
 ```
 
-The backend must allow the website's origin. Set `PUBLIC_CHAT_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:3000`) for the `fintech-ai-assistant` app.
+The backend must allow the website's origin. Set `PUBLIC_CHAT_ALLOWED_ORIGINS` (comma-separated, default `http://localhost:3000`) for the `ai-assistant` app.
 
 Requests are rate-limited per client IP (`app.public-chat.max-requests-per-minute`, default 10). If the site is behind a reverse proxy, the backend must be configured to read the real client address, or all visitors will share one limit.
 
@@ -58,7 +58,7 @@ Then open <http://localhost:3000> in your browser.
 
 Stop the server with `Ctrl+C`.
 
-The port matters: the crawler in `fintech-ai-assistant` expects the site at `http://localhost:3000`. If you use another port, the crawler configuration must change too.
+The port matters: the crawler in `ai-assistant` expects the site at `http://localhost:3000`. If you use another port, the crawler configuration must change too.
 
 ## Check that it works
 

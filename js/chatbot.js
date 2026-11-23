@@ -8,7 +8,7 @@
  *
  *   <script src="js/chatbot.js" data-api-base="https://api.example.com"></script>
  *
- * data-api-base is the base URL of the fintech-ai-assistant backend.
+ * data-api-base is the base URL of the ai-assistant backend.
  * It defaults to http://localhost:8080 for local development.
  */
 (function () {

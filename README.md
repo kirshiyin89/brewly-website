@@ -104,6 +104,53 @@ npm run test:e2e:ui    # the same tests in Playwright's interactive UI
 npx playwright show-report   # open the HTML report of the last run
 ```
 
+Run a single test by part of its title (`-g`), or by file and line:
+
+```bash
+npm run test:e2e -- -g "New chat clears the transcript"
+npx playwright test e2e/chat-widget.spec.js:243
+npx playwright test -g "welcome message" --headed   # watch the browser
+```
+
+Screenshots are off by default. To save one for every test, use the `test:e2e:shots`
+script (or set `SCREENSHOTS=1`). The images go to `test-results/`:
+
+```bash
+npm run test:e2e:shots
+npm run test:e2e:shots -- -g "welcome message"   # one test, with screenshots
+```
+
 Playwright starts `python3 -m http.server 3000` itself. If port 3000 is already
 used by another server, the tests reuse it, so stop that server first if the
 pages look wrong.
+
+## Live tests (real backend, not run by default)
+
+The suite in `e2e-live/` calls the real `ai-assistant` backend and the real model. It
+checks that the bot answers and stays on topic, with loose text checks, because the
+wording changes between runs. It costs a little Groq usage, so run it by hand only.
+
+What it runs:
+- two API checks that send a question straight to `POST /api/public/brewly/chat`;
+- one browser check that types a question into the widget and waits for a real answer.
+
+To run it:
+
+```bash
+# 1. In the ai-assistant folder, start the backend with .env loaded.
+cd ../ai-assistant
+set -a && . ./.env && set +a
+mvn spring-boot:run
+
+# 2. In another terminal, run the live tests.
+cd ../brewly-website
+npm run test:live
+```
+
+The backend must be on `http://localhost:8080`, with the Brewly tenant's public chat
+enabled and the site's origin in `PUBLIC_CHAT_ALLOWED_ORIGINS` (default
+`http://localhost:3000`). To use another address, set `LIVE_API_BASE`:
+`LIVE_API_BASE=http://localhost:9090 npm run test:live`.
+
+If a live test fails because the answer wording changed, check the answer first. Only
+relax the regular expression if the answer is still correct.

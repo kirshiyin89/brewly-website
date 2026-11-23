@@ -14,6 +14,8 @@ module.exports = defineConfig({
   use: {
     baseURL: `http://localhost:${PORT}`,
     trace: "on-first-retry",
+    // Off by default. Set SCREENSHOTS=1 to save a screenshot for every test.
+    screenshot: process.env.SCREENSHOTS ? "on" : "off",
   },
 
   projects: [

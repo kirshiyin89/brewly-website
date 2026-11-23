@@ -5,7 +5,7 @@
  * cannot clash with the site's own classes. It is appended to <body>, outside
  * <main>, so the nightly crawler never indexes it.
  */
-import { ChatError, sendMessage } from "./api.js";
+import { ChatError, StreamUnavailableError, sendMessage, streamMessage } from "./api.js";
 import { getConversationId, loadTranscript, resetConversation, saveTranscript } from "./session.js";
 import { renderText } from "./render.js";
 
@@ -173,17 +173,54 @@ class BrewlyChat extends HTMLElement {
     this.#addMessage("user", question);
 
     const pending = this.#appendBubble("assistant", "Thinking…", ["pending"]);
+    // The bubble that fills in while the answer streams. It is created on the first token.
+    let live = null;
+    let answer = "";
+
+    const showToken = (token) => {
+      if (!live) {
+        pending.remove();
+        this.#suggestions.replaceChildren();
+        live = this.#appendBubble("assistant", "");
+      }
+
+      answer += token;
+      renderText(live.querySelector(".body"), answer);
+      this.#scrollLogToEnd();
+    };
 
     try {
-      const answer = await sendMessage({
-        apiBase: this.#apiBase,
-        conversationId: this.#conversationId,
-        question,
-      });
+      try {
+        await streamMessage({
+          apiBase: this.#apiBase,
+          conversationId: this.#conversationId,
+          question,
+          onToken: showToken,
+        });
+      } catch (error) {
+        // Streaming is not reachable and no text arrived yet: ask on the plain JSON route.
+        if (!(error instanceof StreamUnavailableError) || live) {
+          throw error;
+        }
 
-      pending.remove();
-      this.#addMessage("assistant", answer);
+        answer = await sendMessage({
+          apiBase: this.#apiBase,
+          conversationId: this.#conversationId,
+          question,
+        });
+      }
+
+      if (live) {
+        // The streamed bubble is already on screen; only the transcript needs the full text.
+        this.#messages.push({ role: "assistant", text: answer });
+        saveTranscript(this.#messages);
+      } else {
+        pending.remove();
+        this.#addMessage("assistant", answer);
+      }
     } catch (error) {
+      // A partial answer is removed, so it is never saved or left looking complete.
+      live?.remove();
       pending.remove();
       // Errors are shown but not saved, so they do not reappear after navigation.
       this.#appendBubble("error", error instanceof ChatError ? error.message : String(error));

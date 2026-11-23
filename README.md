@@ -28,7 +28,18 @@ The widget is loaded by the existing `<script src="js/chatbot.js">` tag at the e
 
 - It talks to the anonymous endpoint `POST /api/public/brewly/chat` in `ai-assistant`.
 - The conversation continues across pages in the same browser tab (kept in `sessionStorage`). "New chat" starts over.
-- Replies are plain text with a small subset of markdown (`**bold**`, `- ` bullet lists). Model output is never inserted as raw HTML.
+- Replies support a small subset of markdown: `**bold**`, `- ` bullet lists, `1. ` numbered lists, `#` headings and pipe tables. Wide tables scroll sideways inside the bubble. Model output is never inserted as raw HTML.
+
+### Streaming answers
+
+Answers appear word by word while the model is still writing them, instead of all at once after a wait.
+
+- The widget first calls `POST /api/public/brewly/chat/stream`. The server answers with Server-Sent Events: `token` events carry pieces of text, and a `done` event ends the answer. An `error` event means the answer failed; the widget then removes the partial text and shows the message.
+- The streaming request is the only one the widget makes for a normal question. The widget falls back to the plain JSON endpoint (`POST /api/public/brewly/chat`) only when streaming is not reachable and no text has arrived yet, so the visitor still gets an answer.
+- Only the final answer streams. Short replies (greetings, thanks, out-of-scope and clarification messages) arrive as a single token, then `done`.
+- The full answer is saved to the conversation memory only when the stream finishes, so a dropped connection cannot leave half an answer in the history.
+- Streaming does not make the model faster. It makes the wait feel shorter.
+- A reverse proxy or CDN that buffers responses hides the streaming: the text then arrives all at once at the end. The answer is still correct, but the speed-up is lost. Check the proxy's buffering setting when you deploy.
 
 ### Configuration
 
@@ -51,12 +62,14 @@ Requests are rate-limited per client IP (`app.public-chat.max-requests-per-minut
 From this folder, run:
 
 ```bash
-python3 -m http.server 3000
+python3 serve.py
 ```
 
 Then open <http://localhost:3000> in your browser.
 
 Stop the server with `Ctrl+C`.
+
+`serve.py` sends `Cache-Control: no-cache` with every file. Browsers therefore always reload the JavaScript and CSS, so your edits show after a normal page reload. A plain `python3 -m http.server` does not do this, and browsers can keep showing old widget code until a hard reload.
 
 The port matters: the crawler in `ai-assistant` expects the site at `http://localhost:3000`. If you use another port, the crawler configuration must change too.
 

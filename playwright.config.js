@@ -2,7 +2,8 @@
 // website, so the pages load over http:// (ES modules do not load from file://).
 const { defineConfig, devices } = require("@playwright/test");
 
-const PORT = 3000;
+// 3000 by default. Set E2E_PORT to use another port when 3000 is already taken.
+const PORT = Number(process.env.E2E_PORT) || 3000;
 
 module.exports = defineConfig({
   testDir: "./e2e",
@@ -23,8 +24,8 @@ module.exports = defineConfig({
   ],
 
   webServer: {
-    // python3 is preinstalled on most systems. Use any static server if you prefer.
-    command: `python3 -m http.server ${PORT} --bind 127.0.0.1`,
+    // serve.py is a plain static server that disables browser caching.
+    command: `python3 serve.py ${PORT}`,
     url: `http://localhost:${PORT}/index.html`,
     reuseExistingServer: !process.env.CI,
     stdout: "ignore",

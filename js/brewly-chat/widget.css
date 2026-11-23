@@ -203,9 +203,42 @@ textarea:focus-visible {
   margin: 0 0 8px;
 }
 
-.msg ul {
+.msg ul,
+.msg ol {
   margin: 0 0 8px;
   padding-left: 18px;
+}
+
+.msg .heading {
+  margin: 0 0 6px;
+  font-weight: 600;
+}
+
+/* A wide table scrolls sideways inside the bubble instead of breaking the layout. */
+.msg .table-wrap {
+  max-width: 100%;
+  margin: 0 0 8px;
+  overflow-x: auto;
+}
+
+.msg table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.msg th,
+.msg td {
+  padding: 4px 8px;
+  border: 1px solid var(--border, #e6dcd2);
+  text-align: left;
+  vertical-align: top;
+}
+
+.msg th {
+  background: var(--paper, #ffffff);
+  font-weight: 600;
 }
 
 /* Suggestions and composer --------------------------------------------- */

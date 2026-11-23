@@ -7,6 +7,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const CHAT_ENDPOINT = "**/api/public/brewly/chat";
+const STREAM_ENDPOINT = "**/api/public/brewly/chat/stream";
 
 // The widget is on the page as <brewly-chat> with a Shadow DOM. Playwright's CSS
 // locators pierce open shadow roots, so plain selectors work inside the widget.
@@ -44,6 +45,26 @@ async function stubChat(page, reply = answer("Stub answer.")) {
     await reply(route);
   });
   return requests;
+}
+
+// Replies like the streaming endpoint: one Server-Sent Event per [name, text] pair.
+// Playwright sends the whole body at once, so these tests check the parsing and the
+// final result, not the timing of the individual tokens.
+function sse(events) {
+  return (route) => route.fulfill({
+    status: 200,
+    contentType: "text/event-stream",
+    headers: { "Access-Control-Allow-Origin": "*" },
+    body: events
+      .map(([name, text]) => `event:${name}\ndata:${JSON.stringify({ text })}\n\n`)
+      .join(""),
+  });
+}
+
+// The widget may send its request a moment after the screen updates (for example after a
+// streamed attempt falls back to JSON), so wait for the stub to record it.
+async function waitForRequests(requests, count) {
+  await expect.poll(() => requests.length).toBe(count);
 }
 
 async function openWidget(page) {
@@ -114,9 +135,37 @@ test.describe("sending questions", () => {
     await expect(reply.locator("li")).toHaveCount(2);
     await expect(reply.locator("li").first()).toHaveText("Filter: available");
 
-    expect(requests).toHaveLength(1);
+    await waitForRequests(requests, 1);
     expect(requests[0].question).toBe("What coffees do you sell?");
     expect(requests[0].conversationId).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  test("tables, numbered lists and headings are shown as formatted content", async ({ page }) => {
+    const reply = [
+      "### Sweet coffees",
+      "| Coffee | Roast | Notes |",
+      "|--------|-------|-------|",
+      "| **House Blend** | Medium-dark | Caramel |",
+      "| Filter Ethiopia | Light | Berry |",
+      "",
+      "1. Grind fresh",
+      "2. Brew with 93 °C water",
+    ].join("\n");
+    await stubChat(page, answer(reply));
+    await page.goto("/products.html");
+    await openWidget(page);
+
+    await ask(page, "Which coffees are sweet?");
+
+    const assistant = page.locator("brewly-chat .msg.assistant").last();
+    await expect(assistant.locator(".heading")).toHaveText("Sweet coffees");
+    await expect(assistant.locator("table th")).toHaveText(["Coffee", "Roast", "Notes"]);
+    await expect(assistant.locator("table tbody tr")).toHaveCount(2);
+    await expect(assistant.locator("table tbody tr").first().locator("strong"))
+      .toHaveText("House Blend");
+    await expect(assistant.locator("ol li")).toHaveCount(2);
+    // The raw markdown must not be visible to the visitor.
+    await expect(assistant).not.toContainText("|--");
   });
 
   test("a suggestion button sends its question", async ({ page }) => {
@@ -130,6 +179,7 @@ test.describe("sending questions", () => {
 
     await expect(page.locator("brewly-chat .msg.user")).toHaveText("How long does delivery take?");
     await expect(page.locator("brewly-chat .suggestions button")).toHaveCount(0);
+    await waitForRequests(requests, 1);
     expect(requests[0].question).toBe("How long does delivery take?");
   });
 
@@ -165,6 +215,7 @@ test.describe("sending questions", () => {
 
     await page.keyboard.press("Enter");
     await expect(page.locator("brewly-chat .msg.user")).toContainText("second line");
+    await waitForRequests(requests, 1);
     expect(requests[0].question).toBe("First line\nsecond line");
   });
 
@@ -236,7 +287,7 @@ test.describe("conversation memory", () => {
     await expect(page.locator("brewly-chat .msg.user")).toHaveCount(2);
 
     // Both questions belong to the same conversation id.
-    expect(requests).toHaveLength(2);
+    await waitForRequests(requests, 2);
     expect(requests[1].conversationId).toBe(requests[0].conversationId);
   });
 
@@ -255,6 +306,70 @@ test.describe("conversation memory", () => {
 
     await ask(page, "Second question");
     await expect(page.locator("brewly-chat .msg.user")).toHaveCount(1);
+    await waitForRequests(requests, 2);
     expect(requests[1].conversationId).not.toBe(requests[0].conversationId);
+  });
+});
+
+test.describe("streamed answers", () => {
+  test("the streamed answer appears and is kept after navigation", async ({ page }) => {
+    await page.route(STREAM_ENDPOINT, sse([
+      ["token", "Delivery "],
+      ["token", "takes **2-3 days**."],
+      ["done", ""],
+    ]));
+    await page.goto("/index.html");
+    await openWidget(page);
+
+    await ask(page, "How long does delivery take?");
+
+    const assistant = page.locator("brewly-chat .msg.assistant").last();
+    await expect(assistant).toContainText("Delivery takes 2-3 days.");
+    await expect(assistant.locator("strong")).toHaveText("2-3 days");
+
+    // The full text went into the transcript, so it survives a page change.
+    await page.goto("/products.html");
+    await openWidget(page);
+    await expect(page.locator("brewly-chat .msg.assistant").last())
+      .toContainText("Delivery takes 2-3 days.");
+  });
+
+  test("falls back to the JSON route when streaming is not available", async ({ page }) => {
+    await page.route(STREAM_ENDPOINT, failWith(500));
+    const requests = await stubChat(page, answer("Answer from the plain route."));
+    await page.goto("/index.html");
+    await openWidget(page);
+
+    await ask(page, "What coffees do you sell?");
+
+    await expect(page.locator("brewly-chat .msg.assistant").last())
+      .toHaveText(/Answer from the plain route\./);
+    await waitForRequests(requests, 1);
+  });
+
+  test("an error event shows its message and the partial answer is removed", async ({ page }) => {
+    await page.route(STREAM_ENDPOINT, sse([
+      ["token", "Partial "],
+      ["error", "The answer could not be completed. Please try again."],
+    ]));
+    await page.goto("/index.html");
+    await openWidget(page);
+
+    await ask(page, "What is your return policy?");
+
+    await expect(page.locator("brewly-chat .msg.error"))
+      .toHaveText("The answer could not be completed. Please try again.");
+    await expect(page.locator("brewly-chat .msg.assistant", { hasText: "Partial" }))
+      .toHaveCount(0);
+  });
+
+  test("a rate-limit reply on the stream shows the rate-limit message", async ({ page }) => {
+    await page.route(STREAM_ENDPOINT, failWith(429));
+    await page.goto("/index.html");
+    await openWidget(page);
+
+    await ask(page, "Hello?");
+
+    await expect(page.locator("brewly-chat .msg.error")).toContainText("very quickly");
   });
 });
